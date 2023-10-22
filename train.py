@@ -5,7 +5,7 @@ from rwkv_model import RwkvBot, encode, decode, forward
 import torch
 from torch.utils.data import DataLoader
 
-device = "cpu"
+device = "cuda"
 num_epochs = 10
 batches_per_epoch = 10_000
 save_path = "denoiser.fc"
@@ -15,7 +15,7 @@ save_path = "denoiser.fc"
 seed, buffer_size = 1, 1_000
 dataset = load_dataset('c4', 'en', split='train', streaming=True)
 dataset = dataset.shuffle(seed, buffer_size=buffer_size)
-dataloader = DataLoader(dataset, batch_size=64)
+dataloader = DataLoader(dataset, batch_size=8)
 
 def embed(batch):
     """
@@ -32,11 +32,11 @@ def embed(batch):
     through the RWKV model.
     """
 
-    tokens = (rwkv_model.encode(text) for text in batch['text'])
+    tokens = [rwkv_model.encode(text) for text in batch['text']]
 
     # Truncate excess tokens
     min_length = min(map(len, tokens))
-    tokens = (t[:min_length] for t in tokens)
+    tokens = [t[:min_length] for t in tokens]
 
     embeddings = None
     for token_batch in zip(*tokens):
@@ -50,26 +50,31 @@ from augmented_bert import bert_model
 import torch.nn.functional as F
 import os
 
-bert_model = bert_model.train().to(device)
 if os.path.exists(save_path):
     bert_model.load_fc(save_path)
 
-optim = torch.optim.AdamW(params=bert_model.parameters(), lr=1e-5)
+bert_model = bert_model.train().to(device, dtype=torch.bfloat16)
+
+optim = torch.optim.AdamW(params=bert_model.get_trainable_parameters(), lr=1e-4)
 for epoch in range(10):
     dataset.set_epoch(epoch)
     pbar = tqdm(dataloader, total=batches_per_epoch)
     for i, batch in enumerate(pbar):
-        embedding = embed(batch)
-        noise = (1 + epoch) / num_epochs * (0.5 - torch.rand_like(embedding)) * embedding
-        output = bert_model(embedding + noise)
+        loss = torch.tensor(0).to(device='cuda', dtype=torch.bfloat16)
+        for embedding in embed(batch):
+            embedding = embedding.to(dtype=torch.bfloat16)
+            noise = (1 + epoch) / num_epochs * (0.5 - torch.rand_like(embedding))
+            noisy = embedding + noise * embedding
+            noisy = (noisy - noisy.mean()) / noisy.std()
 
-        loss = F.mse_loss(output, noise)
-        loss.backward()
-        optim.step()
-        optim.zero_grad()
+            output = bert_model(noisy)
 
-        if i % 10 == 0:
+            loss = F.mse_loss(output, noise)
+            loss.backward()
+            optim.step()
+            optim.zero_grad()
+
             print(f"loss: {loss.item()}")
 
-        if i % 100 == 0: # Save the model
+        if i % 10 == 0: # Save the model
             bert_model.save_fc(save_path)

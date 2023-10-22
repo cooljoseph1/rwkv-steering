@@ -1,8 +1,9 @@
 import torch.nn as nn
 from torch import save, load
+import torch
 
 class AugmentedBert(nn.Module):
-    def __init__(self, bert_layers, up_size=2560, down_size=1024, k=50, residual_multiplier=1.0):
+    def __init__(self, bert_layers, up_size=2048, down_size=1024, k=50, residual_multiplier=1.0):
         super().__init__()
         self.downs = nn.ModuleList([
             Down(in_size=up_size, out_size=down_size)
@@ -46,11 +47,14 @@ class AugmentedBert(nn.Module):
         up = up + up_residual * self.residual_multiplier
         return up
     
+    def get_trainable_parameters(self):
+        return [p for p in self.parameters() if p.requires_grad]
+    
 class Down(nn.Module):
-    def __init__(self, in_size=2560, out_size=1024):
+    def __init__(self, in_size=2048, out_size=1024):
         super().__init__()
-        self.layer_norm = nn.LayerNorm((in_size,))
-        self.dense = nn.Linear(in_size, out_size)
+        self.layer_norm = nn.LayerNorm((in_size,), elementwise_affine=False)
+        self.dense = LoRA(in_size, out_size)
         self.dropout = nn.Dropout(p=0.1)
 
     def forward(self, embeddings):
@@ -61,7 +65,7 @@ class Down(nn.Module):
     
 
 class ChoppedBertLayer(nn.Module):
-    def __init__(self, bert_layer, down_size=1024, up_size=2560):
+    def __init__(self, bert_layer, down_size=1024, up_size=2048):
         super().__init__()
         # Note: you should be able to find down_size with
         # bert_layer.attention._modules['self'].query.in_features
@@ -77,14 +81,25 @@ class ChoppedBertLayer(nn.Module):
         return x
 
 class BertLayerOutput(nn.Module):
-    def __init__(self, in_size=4096, out_size=2560):
+    def __init__(self, in_size=4096, out_size=2048):
         super().__init__()
-        self.layer_norm = nn.LayerNorm((in_size,))
-        self.dense = nn.Linear(in_size, out_size)
+        self.layer_norm = nn.LayerNorm((in_size,), elementwise_affine=False)
+        self.dense = LoRA(in_size, out_size)
         self.dropout = nn.Dropout(p=0.1)
 
     def forward(self, embeddings):
         x = self.layer_norm(embeddings)
         x = self.dense(x)
         x = self.dropout(x)
+        return x
+    
+class LoRA(nn.Module):
+    def __init__(self, in_size, out_size, k=50):
+        super().__init__()
+        self.in_to_k = nn.Linear(in_size, k, bias=False)
+        self.k_to_out = nn.Linear(k, out_size)
+
+    def forward(self, x):
+        x = self.in_to_k(x)
+        x = self.k_to_out(x)
         return x

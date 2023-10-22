@@ -12,8 +12,8 @@ class Args:
     pass
 
 args = Args()
-args.MODEL_NAME = os.path.join(my_dir, "rwkv-3b", "RWKV-4-Pile-3B-Instruct-test1-20230124")
-args.RUN_DEVICE = "cpu"
+args.MODEL_NAME = os.path.join(my_dir, "rwkv-1.5b", "RWKV-4-World-1.5B-v1-fixed-20230612-ctx4096")
+args.RUN_DEVICE = "cuda"
 args.ctx_len = 1024
 
 RwkvModel = RWKV_RNN(args)

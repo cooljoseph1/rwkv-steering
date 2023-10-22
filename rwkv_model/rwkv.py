@@ -102,6 +102,9 @@ class RWKV_RNN(torch.nn.Module):
             self.w.emb.weight = x.to(dtype=self.FLOAT_MODE)
 
         self.eval()
+        gc.collect()
+        if 'cuda' in args.RUN_DEVICE:
+            torch.cuda.empty_cache()
 
     def LN(self, x, w):
         return F.layer_norm(x, (self.args.n_embd,), weight=w.weight, bias=w.bias)
