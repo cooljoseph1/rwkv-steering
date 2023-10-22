@@ -58,7 +58,7 @@ class ChoppedBertLayer(nn.Module):
         return x
 
 class BertLayerOutput(nn.Module):
-    def __init__(self, in_size=3072, out_size=2560):
+    def __init__(self, in_size=4096, out_size=2560):
         super().__init__()
         self.layer_norm = nn.LayerNorm((in_size,))
         self.dense = nn.Linear(in_size, out_size)

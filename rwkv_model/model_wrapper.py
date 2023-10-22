@@ -39,8 +39,8 @@ def decode(tokens):
     
 def forward(tokens, hidden_state=None):
     tokens = torch.tensor(tokens, device=RwkvModel.device, dtype=torch.long)
-    output_logits, state = RwkvModel.forward(tokens, hidden_state)
-    return output_logits, state
+    state = RwkvModel.forward(tokens, hidden_state)
+    return state
 
 def sample_token(logits, temperature=1.0, top_k=10):
     top_k = min(top_k, logits.size(-1)) # safety check
