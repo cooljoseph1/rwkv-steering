@@ -1,4 +1,5 @@
 import torch.nn as nn
+from torch import save, load
 
 class AugmentedBert(nn.Module):
     def __init__(self, bert_layers, up_size=2560, down_size=1024, k=50, residual_multiplier=1.0):
@@ -13,6 +14,24 @@ class AugmentedBert(nn.Module):
             for bert_layer in bert_layers
         ])
         self.residual_multiplier = residual_multiplier
+
+    def save_fc(self, path):
+        model_dict = {
+            'downs': self.downs,
+            'ups': [l.output for l in self.chopped_bert_layers]
+        }
+
+        save(model_dict, path)
+
+    def load_fc(self, path):
+        model_dict = load(path)
+
+        del self.downs # for garbage collection
+        self.downs = model_dict['downs']
+
+        for i, l in enumerate(self.chopped_bert_layers):
+            del l.output
+            l.output = model_dict['ups'][i]
 
     def forward(self, embeddings):
         up = embeddings

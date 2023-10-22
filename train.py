@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 device = "cpu"
 num_epochs = 10
 batches_per_epoch = 10_000
+save_path = "denoiser.fc"
 
 ## Prepare Data ##
 
@@ -43,8 +44,12 @@ def embed(batch):
 ## Training ##
 from augmented_bert import bert_model
 import torch.nn.functional as F
+import os
 
 bert_model = bert_model.train().to(device)
+if os.path.exists(save_path):
+    bert_model.load_fc(save_path)
+
 optim = torch.optim.AdamW(params=bert_model.parameters(), lr=1e-5)
 for epoch in range(10):
     dataset.set_epoch(epoch)
@@ -63,4 +68,4 @@ for epoch in range(10):
             print(f"loss: {loss.item()}")
 
         if i % 100 == 0: # Save the model
-            pass
+            bert_model.save_fc(save_path)

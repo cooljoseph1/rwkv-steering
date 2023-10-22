@@ -1,3 +1,4 @@
 *.pyc
 rwkv_model/rwkv-3b/
 augmented_bert/bert-340m
+denoiser.fc
