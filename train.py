@@ -32,14 +32,18 @@ def embed(batch):
     through the RWKV model.
     """
 
-    tokens = [rwkv_model.encode(text) for text in batch['text']]
+    tokens = (rwkv_model.encode(text) for text in batch['text'])
 
     # Truncate excess tokens
     min_length = min(map(len, tokens))
-    tokens = torch.stack([t[:min_length] for t in tokens])
+    tokens = (t[:min_length] for t in tokens)
 
-    with torch.no_grad():
-        return rwkv_model.forward(tokens, None)
+    embeddings = None
+    for token_batch in zip(*tokens):
+        token_batch = torch.tensor(token_batch).unsqueeze(0)
+        with torch.no_grad():
+            embeddings = rwkv_model.forward(token_batch, embeddings)
+        yield embeddings
 
 ## Training ##
 from augmented_bert import bert_model
